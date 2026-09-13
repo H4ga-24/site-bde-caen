@@ -1,45 +1,47 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-const SHEET_CSV_URL =
-  "https://docs.google.com/spreadsheets/d/e/2PACX-1vT7jG5IgjcvEmfymnE9PMBmngGw0hopjdX9a-bLL2P54LLfPe-kjymBVe2bVF-CIoq8-1ZjnJLpDUBI/pub?gid=87679688&single=true&output=csv";
-
 export async function GET() {
   try {
     const memberMap = new Map();
+    const sheetUrl = process.env.GOOGLE_SHEET_CSV_URL;
 
-    // 1. Lecture Google Sheets côté serveur (aucun blocage CORS)
-    try {
-      const res = await fetch(`${SHEET_CSV_URL}&t=${Date.now()}`, {
-        cache: "no-store",
-      });
-      if (res.ok) {
-        const text = await res.text();
-        const lines = text.trim().split(/\r?\n/).filter((l) => l.trim() !== "");
-
-        lines.slice(1).forEach((line) => {
-          const cols = line.split(",").map((c) => c.replace(/"/g, "").trim());
-          const mailCol = cols.find((c) => c.includes("@"));
-          if (mailCol) {
-            const cleanMail = mailCol.toLowerCase();
-            const rawText = cols.join(" ").toUpperCase();
-            let detectedPromo = "Autre";
-            if (rawText.includes("L1")) detectedPromo = "L1";
-            if (rawText.includes("L2")) detectedPromo = "L2";
-
-            memberMap.set(cleanMail, {
-              email: cleanMail,
-              fullName: cols[0] && cols[1] ? `${cols[0]} ${cols[1]}` : "Adhérent HelloAsso",
-              promo: detectedPromo,
-              hasAccount: false,
-              hasPaidDues: true,
-              source: "HelloAsso",
-            });
-          }
+    // 1. Lecture Google Sheets côté serveur via variable protégée
+    if (sheetUrl) {
+      try {
+        const res = await fetch(`${sheetUrl}&t=${Date.now()}`, {
+          cache: "no-store",
         });
+
+        if (res.ok) {
+          const text = await res.text();
+          const lines = text.trim().split(/\r?\n/).filter((l) => l.trim() !== "");
+
+          lines.slice(1).forEach((line) => {
+            const cols = line.split(",").map((c) => c.replace(/"/g, "").trim());
+            const mailCol = cols.find((c) => c.includes("@"));
+
+            if (mailCol) {
+              const cleanMail = mailCol.toLowerCase();
+              const rawText = cols.join(" ").toUpperCase();
+              let detectedPromo = "Autre";
+              if (rawText.includes("L1")) detectedPromo = "L1";
+              if (rawText.includes("L2")) detectedPromo = "L2";
+
+              memberMap.set(cleanMail, {
+                email: cleanMail,
+                fullName: cols[0] && cols[1] ? `${cols[0]} ${cols[1]}` : "Adhérent HelloAsso",
+                promo: detectedPromo,
+                hasAccount: false,
+                hasPaidDues: true,
+                source: "HelloAsso",
+              });
+            }
+          });
+        }
+      } catch (sheetErr) {
+        console.error("Erreur Sheets serveur:", sheetErr);
       }
-    } catch (sheetErr) {
-      console.error("Erreur Sheets serveur:", sheetErr);
     }
 
     // 2. Lecture des profils Supabase
@@ -48,6 +50,7 @@ export async function GET() {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const { data: profiles } = await supabase.from("profiles").select("*");
+
     if (profiles) {
       profiles.forEach((p: any) => {
         const cleanMail = (p.email || "").toLowerCase();

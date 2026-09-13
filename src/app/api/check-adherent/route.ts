@@ -1,20 +1,21 @@
 import { NextResponse } from "next/server";
 
-const SHEET_CSV_URL =
-  "https://docs.google.com/spreadsheets/d/e/2PACX-1vT7jG5IgjcvEmfymnE9PMBmngGw0hopjdX9a-bLL2P54LLfPe-kjymBVe2bVF-CIoq8-1ZjnJLpDUBI/pub?gid=87679688&single=true&output=csv";
-
 export async function POST(req: Request) {
   try {
     const { email } = await req.json();
-
     if (!email) {
       return NextResponse.json({ isAdherent: false, error: "Email requis" }, { status: 400 });
     }
 
+    const sheetUrl = process.env.GOOGLE_SHEET_CSV_URL;
+    if (!sheetUrl) {
+      return NextResponse.json({ isAdherent: false, error: "Configuration manquante" }, { status: 500 });
+    }
+
     const cleanTargetEmail = email.trim().toLowerCase();
 
-    // Récupération du CSV Google Sheets en direct (sans cache)
-    const response = await fetch(`${SHEET_CSV_URL}&t=${Date.now()}`, {
+    // Récupération du CSV Google Sheets en direct côté serveur
+    const response = await fetch(`${sheetUrl}&t=${Date.now()}`, {
       cache: "no-store",
     });
 
@@ -25,7 +26,7 @@ export async function POST(req: Request) {
     const csvText = await response.text();
     const rows = csvText.split(/\r?\n/).filter((line) => line.trim() !== "");
 
-    // Vérifie si l'email de l'étudiant est présent dans l'une des colonnes du tableau
+    // Vérifie si l'email de l'étudiant est présent dans une des colonnes
     const isAdherent = rows.some((row) => {
       const columns = row.split(",").map((c) => c.trim().toLowerCase());
       return columns.some((col) => col === cleanTargetEmail);

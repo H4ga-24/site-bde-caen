@@ -1,231 +1,132 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { ShoppingBag, Upload, Plus, AlertCircle, CheckCircle2 } from "lucide-react";
+import { ShoppingBag, Sparkles, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 
-export default function AdminBoutiquePage() {
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [priceRegular, setPriceRegular] = useState("");
-  const [priceAdherent, setPriceAdherent] = useState("");
-  const [category, setCategory] = useState("Textile");
-  const [stock, setStock] = useState("50");
-  const [file, setFile] = useState<File | null>(null);
+interface Product {
+  id: number;
+  name: string;
+  description: string;
+  price_regular: number;
+  price_adherent: number;
+  image_url: string | null;
+  category: string;
+  stock: number;
+}
 
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
-
+export default function BoutiquePage() {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isAdherent, setIsAdherent] = useState(false);
   const supabase = createClient();
 
-  const handleCreateProduct = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    setSuccess("");
-    setLoading(true);
+  useEffect(() => {
+    async function loadData() {
+      // 1. Chargement des produits en vente
+      const { data } = await supabase
+        .from("products")
+        .select("*")
+        .eq("is_active", true)
+        .order("created_at", { ascending: false });
 
-    try {
-      let imageUrl = "";
+      if (data) setProducts(data);
 
-      // 1. Upload de la photo dans le bucket Supabase Storage
-      if (file) {
-        const fileExt = file.name.split(".").pop();
-        const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-        const filePath = `${fileName}`;
-
-        const { error: uploadError } = await supabase.storage
-          .from("product-images")
-          .upload(filePath, file);
-
-        if (uploadError) {
-          throw new Error("Erreur lors de l'upload de l'image : " + uploadError.message);
-        }
-
-        const { data: publicUrlData } = supabase.storage
-          .from("product-images")
-          .getPublicUrl(filePath);
-
-        imageUrl = publicUrlData.publicUrl;
+      // 2. Vérification statut adhérent
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("has_paid_dues")
+          .eq("id", session.user.id)
+          .single();
+        setIsAdherent(!!profile?.has_paid_dues);
       }
-
-      // 2. Insertion du produit dans la table Supabase
-      const { error: insertError } = await supabase.from("products").insert([
-        {
-          name: name.trim(),
-          description: description.trim(),
-          price_regular: parseFloat(priceRegular.replace(",", ".")),
-          price_adherent: parseFloat(priceAdherent.replace(",", ".")),
-          category,
-          stock: parseInt(stock, 10) || 0,
-          image_url: imageUrl || null,
-        },
-      ]);
-
-      if (insertError) {
-        throw new Error(insertError.message);
-      }
-
-      setSuccess("Article ajouté avec succès à la boutique !");
-      setName("");
-      setDescription("");
-      setPriceRegular("");
-      setPriceAdherent("");
-      setStock("50");
-      setFile(null);
-    } catch (err: any) {
-      setError(err.message || "Une erreur est survenue.");
-    } finally {
       setLoading(false);
     }
-  };
+    loadData();
+  }, [supabase]);
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-6">
-      <div className="flex items-center justify-between pb-6 border-b border-gray-200">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 flex items-center gap-3">
-            <ShoppingBag className="text-purple-600" size={28} />
-            Ajouter un article à la boutique
-          </h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Mettez en vente un sweat, un pack goodies ou un article du BDE.
-          </p>
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-8">
+      <div className="text-center max-w-2xl mx-auto space-y-3">
+        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-purple-50 text-purple-700 text-xs font-bold uppercase tracking-wider">
+          <ShoppingBag size={16} /> Boutique Officielle
         </div>
-        <Link
-          href="/admin"
-          className="text-xs font-semibold text-gray-600 hover:text-gray-900 bg-gray-100 px-3 py-2 rounded-xl transition"
-        >
-          ← Retour admin
-        </Link>
+        <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-900 tracking-tight">
+          Goodies & Vêtements BDE
+        </h1>
+        <p className="text-gray-600 text-sm">
+          Retrouvez les sweats de promo et les accessoires du BDE Éco-Gestion Caen.
+        </p>
       </div>
 
-      {error && (
-        <div className="flex items-center gap-2 bg-red-50 text-red-600 p-4 rounded-2xl text-sm border border-red-100">
-          <AlertCircle size={18} className="shrink-0" />
-          <span>{error}</span>
-        </div>
-      )}
-
-      {success && (
-        <div className="flex items-center gap-2 bg-emerald-50 text-emerald-700 p-4 rounded-2xl text-sm border border-emerald-150">
-          <CheckCircle2 size={18} className="shrink-0" />
-          <span>{success}</span>
-        </div>
-      )}
-
-      <form onSubmit={handleCreateProduct} className="bg-white border border-gray-200 rounded-3xl p-6 sm:p-8 shadow-sm space-y-5">
-        <div>
-          <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
-            Nom de l'article
-          </label>
-          <input
-            type="text"
-            required
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Ex: Sweat Promo Éco-Gestion 2026"
-            className="w-full px-4 py-2.5 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-purple-600"
-          />
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
-              Prix Public (€)
-            </label>
-            <input
-              type="text"
-              required
-              value={priceRegular}
-              onChange={(e) => setPriceRegular(e.target.value)}
-              placeholder="35.00"
-              className="w-full px-4 py-2.5 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-purple-600"
-            />
+      {!isAdherent && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 max-w-3xl mx-auto text-xs text-amber-900">
+          <div className="flex items-center gap-2">
+            <Sparkles size={18} className="text-amber-600 shrink-0" />
+            <span>Adhérez ou connectez-vous pour débloquer automatiquement le <strong>tarif adhérent</strong> sur tous les articles !</span>
           </div>
-
-          <div>
-            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
-              Prix Adhérent (€)
-            </label>
-            <input
-              type="text"
-              required
-              value={priceAdherent}
-              onChange={(e) => setPriceAdherent(e.target.value)}
-              placeholder="30.00"
-              className="w-full px-4 py-2.5 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-purple-600"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
-              Stock Initial
-            </label>
-            <input
-              type="number"
-              required
-              value={stock}
-              onChange={(e) => setStock(e.target.value)}
-              className="w-full px-4 py-2.5 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-purple-600"
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
-              Catégorie
-            </label>
-            <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className="w-full px-4 py-2.5 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-purple-600 bg-white"
-            >
-              <option value="Textile">Textile / Vêtements</option>
-              <option value="Goodies">Goodies / Accessoires</option>
-              <option value="Pack">Pack Événement</option>
-              <option value="Autre">Autre</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
-              Photo du produit
-            </label>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={(e) => setFile(e.target.files?.[0] || null)}
-              className="w-full px-3 py-2 border rounded-xl text-xs text-gray-600 file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100"
-            />
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
-            Description
-          </label>
-          <textarea
-            rows={3}
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Détails des tailles, matière, lieu de retrait..."
-            className="w-full px-4 py-2.5 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-purple-600"
-          />
-        </div>
-
-        <div className="text-right pt-2">
-          <button
-            type="submit"
-            disabled={loading}
-            className="bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white font-bold px-6 py-3 rounded-xl text-sm transition flex items-center gap-2 ml-auto shadow"
+          <Link
+            href="/login"
+            className="bg-amber-500 hover:bg-amber-600 text-white font-bold px-3.5 py-1.5 rounded-xl whitespace-nowrap transition"
           >
-            {loading ? "Enregistrement..." : <><Plus size={18} /> Mettre en vente</>}
-          </button>
+            Se connecter
+          </Link>
         </div>
-      </form>
+      )}
+
+      {loading ? (
+        <p className="text-center text-gray-400 py-12 text-sm">Chargement des articles...</p>
+      ) : products.length === 0 ? (
+        <div className="text-center py-16 border border-dashed border-gray-200 rounded-3xl text-gray-400 text-sm">
+          Aucun article en vente pour l'instant. Les nouveaux sweats arrivent bientôt !
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {products.map((p) => (
+            <div key={p.id} className="bg-white border border-gray-200 rounded-3xl overflow-hidden shadow-sm flex flex-col justify-between">
+              {p.image_url ? (
+                <img src={p.image_url} alt={p.name} className="w-full h-52 object-cover" />
+              ) : (
+                <div className="w-full h-52 bg-gray-100 flex items-center justify-center text-gray-400">
+                  <ShoppingBag size={40} />
+                </div>
+              )}
+              <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
+                <div>
+                  <div className="flex justify-between items-start gap-2 mb-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider bg-gray-100 text-gray-600 px-2 py-0.5 rounded-md">
+                      {p.category}
+                    </span>
+                    <span className="text-xs text-gray-400">Stock : {p.stock}</span>
+                  </div>
+                  <h3 className="font-extrabold text-gray-900 text-base">{p.name}</h3>
+                  {p.description && <p className="text-xs text-gray-500 mt-1">{p.description}</p>}
+                </div>
+                <div className="pt-4 border-t border-gray-100 flex items-baseline justify-between">
+                  <div>
+                    <span className="text-xs text-gray-400 block">Prix</span>
+                    <span className="text-xl font-black text-gray-900">
+                      {isAdherent ? p.price_adherent.toFixed(2) : p.price_regular.toFixed(2)} €
+                    </span>
+                  </div>
+                  {isAdherent ? (
+                    <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-xl">
+                      <CheckCircle2 size={13} /> Tarif Adhérent
+                    </span>
+                  ) : (
+                    <span className="text-[11px] text-gray-500">
+                      {p.price_adherent.toFixed(2)} € adhérent
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
