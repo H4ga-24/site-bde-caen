@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { ShoppingBag, Sparkles, CheckCircle2 } from "lucide-react";
+import { ShoppingBag, Sparkles, CheckCircle2, ExternalLink } from "lucide-react";
 import Link from "next/link";
 
 interface Product {
@@ -14,6 +14,7 @@ interface Product {
   image_url: string | null;
   category: string;
   stock: number;
+  helloasso_url?: string | null;
 }
 
 export default function BoutiquePage() {
@@ -24,7 +25,6 @@ export default function BoutiquePage() {
 
   useEffect(() => {
     async function loadData() {
-      // 1. Chargement des produits en vente
       const { data } = await supabase
         .from("products")
         .select("*")
@@ -33,7 +33,6 @@ export default function BoutiquePage() {
 
       if (data) setProducts(data);
 
-      // 2. Vérification statut adhérent
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
         const { data: profile } = await supabase
@@ -66,7 +65,7 @@ export default function BoutiquePage() {
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 max-w-3xl mx-auto text-xs text-amber-900">
           <div className="flex items-center gap-2">
             <Sparkles size={18} className="text-amber-600 shrink-0" />
-            <span>Adhérez ou connectez-vous pour débloquer automatiquement le <strong>tarif adhérent</strong> sur tous les articles !</span>
+            <span>Adhérez ou connectez-vous pour débloquer le <strong>tarif adhérent</strong> sur tous les articles !</span>
           </div>
           <Link
             href="/login"
@@ -100,26 +99,47 @@ export default function BoutiquePage() {
                     <span className="text-[10px] font-bold uppercase tracking-wider bg-gray-100 text-gray-600 px-2 py-0.5 rounded-md">
                       {p.category}
                     </span>
-                    <span className="text-xs text-gray-400">Stock : {p.stock}</span>
+                    <span className="text-xs text-gray-400">Stock restant : {p.stock}</span>
                   </div>
                   <h3 className="font-extrabold text-gray-900 text-base">{p.name}</h3>
                   {p.description && <p className="text-xs text-gray-500 mt-1">{p.description}</p>}
                 </div>
-                <div className="pt-4 border-t border-gray-100 flex items-baseline justify-between">
-                  <div>
-                    <span className="text-xs text-gray-400 block">Prix</span>
-                    <span className="text-xl font-black text-gray-900">
-                      {isAdherent ? p.price_adherent.toFixed(2) : p.price_regular.toFixed(2)} €
-                    </span>
+
+                <div className="pt-4 border-t border-gray-100 space-y-3">
+                  <div className="flex items-baseline justify-between">
+                    <div>
+                      <span className="text-xs text-gray-400 block">Prix</span>
+                      <span className="text-xl font-black text-gray-900">
+                        {isAdherent ? p.price_adherent.toFixed(2) : p.price_regular.toFixed(2)} €
+                      </span>
+                    </div>
+                    {isAdherent ? (
+                      <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-xl">
+                        <CheckCircle2 size={13} /> Tarif Adhérent
+                      </span>
+                    ) : (
+                      <span className="text-[11px] text-gray-500">
+                        {p.price_adherent.toFixed(2)} € pour les adhérents
+                      </span>
+                    )}
                   </div>
-                  {isAdherent ? (
-                    <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-xl">
-                      <CheckCircle2 size={13} /> Tarif Adhérent
-                    </span>
+
+                  {p.helloasso_url ? (
+                    <a
+                      href={p.helloasso_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2.5 rounded-xl text-xs transition flex items-center justify-center gap-2 shadow"
+                    >
+                      Commander sur HelloAsso <ExternalLink size={14} />
+                    </a>
                   ) : (
-                    <span className="text-[11px] text-gray-500">
-                      {p.price_adherent.toFixed(2)} € adhérent
-                    </span>
+                    <button
+                      disabled
+                      className="w-full bg-gray-100 text-gray-400 font-bold py-2.5 rounded-xl text-xs cursor-not-allowed"
+                    >
+                      Vente bientôt disponible
+                    </button>
                   )}
                 </div>
               </div>

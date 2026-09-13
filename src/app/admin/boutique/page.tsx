@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { ShoppingBag, Plus, AlertCircle, CheckCircle2 } from "lucide-react";
+import { ShoppingBag, Plus, AlertCircle, CheckCircle2, Link2 } from "lucide-react";
 import Link from "next/link";
 
 export default function AdminBoutiquePage() {
@@ -12,6 +12,7 @@ export default function AdminBoutiquePage() {
   const [priceAdherent, setPriceAdherent] = useState("");
   const [category, setCategory] = useState("Textile");
   const [stock, setStock] = useState("50");
+  const [helloassoUrl, setHelloassoUrl] = useState("");
   const [file, setFile] = useState<File | null>(null);
 
   const [loading, setLoading] = useState(false);
@@ -29,7 +30,6 @@ export default function AdminBoutiquePage() {
     try {
       let imageUrl = "";
 
-      // 1. Upload de la photo dans le bucket Supabase
       if (file) {
         const fileExt = file.name.split(".").pop();
         const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
@@ -50,7 +50,6 @@ export default function AdminBoutiquePage() {
         imageUrl = publicUrlData.publicUrl;
       }
 
-      // 2. Insertion dans la base
       const { error: insertError } = await supabase.from("products").insert([
         {
           name: name.trim(),
@@ -60,6 +59,7 @@ export default function AdminBoutiquePage() {
           category,
           stock: parseInt(stock, 10) || 0,
           image_url: imageUrl || null,
+          helloasso_url: helloassoUrl.trim() || null,
         },
       ]);
 
@@ -73,6 +73,7 @@ export default function AdminBoutiquePage() {
       setPriceRegular("");
       setPriceAdherent("");
       setStock("50");
+      setHelloassoUrl("");
       setFile(null);
     } catch (err: any) {
       setError(err.message || "Une erreur est survenue.");
@@ -90,7 +91,7 @@ export default function AdminBoutiquePage() {
             Ajouter un article à la boutique
           </h1>
           <p className="text-sm text-gray-500 mt-1">
-            Création d'un produit visible par les étudiants.
+            Création d'un produit avec redirection de paiement HelloAsso.
           </p>
         </div>
         <Link
@@ -125,7 +126,7 @@ export default function AdminBoutiquePage() {
             required
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Ex: Sweat Promo 2026 Brodé"
+            placeholder="Ex: Sweat Promo Éco-Gestion 2026"
             className="w-full px-4 py-2.5 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-purple-600"
           />
         </div>
@@ -173,6 +174,28 @@ export default function AdminBoutiquePage() {
           </div>
         </div>
 
+        <div>
+          <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
+            Lien HelloAsso (Boutique / Billetterie)
+          </label>
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
+              <Link2 size={16} />
+            </div>
+            <input
+              type="url"
+              required
+              value={helloassoUrl}
+              onChange={(e) => setHelloassoUrl(e.target.value)}
+              placeholder="https://www.helloasso.com/associations/.../boutiques/..."
+              className="w-full pl-10 pr-4 py-2.5 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-purple-600"
+            />
+          </div>
+          <p className="text-[11px] text-gray-400 mt-1">
+            Le lien vers la boutique ou le formulaire HelloAsso créé pour cet article.
+          </p>
+        </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
@@ -211,7 +234,7 @@ export default function AdminBoutiquePage() {
             rows={3}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="Tailles disponibles, coupe, date de livraison..."
+            placeholder="Tailles disponibles, coloris, dates de livraison..."
             className="w-full px-4 py-2.5 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-purple-600"
           />
         </div>

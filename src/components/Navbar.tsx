@@ -24,23 +24,27 @@ export default function Navbar() {
         setIsAdmin(data?.role === "admin");
       }
     };
+
     fetchUser();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
     });
+
     return () => subscription.unsubscribe();
   }, [supabase]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
+    setIsAdmin(false);
     router.refresh();
   };
 
+  // Redirection dynamique de la boutique selon le rôle
   const navLinks = [
     { name: "Accueil", href: "/" },
     { name: "Cours", href: "/cours" },
-    { name: "Boutique", href: "/boutique" },
+    { name: "Boutique", href: isAdmin ? "/admin/boutique" : "/boutique" },
     { name: "Agenda", href: "/agenda" },
   ];
 
@@ -54,7 +58,7 @@ export default function Navbar() {
 
           <div className="hidden md:flex space-x-8 items-center">
             {navLinks.map((link) => (
-              <Link key={link.href} href={link.href} className="text-gray-300 hover:text-white transition">
+              <Link key={link.name} href={link.href} className="text-gray-300 hover:text-white transition">
                 {link.name}
               </Link>
             ))}
@@ -71,11 +75,11 @@ export default function Navbar() {
             {user ? (
               <div className="flex items-center gap-4">
                 {isAdmin && (
-                  <Link href="/admin" className="text-brand-gold hover:text-yellow-400 flex items-center gap-1">
+                  <Link href="/admin" className="text-brand-gold hover:text-yellow-400 flex items-center gap-1 text-sm font-semibold">
                     <Settings size={18} /> Admin
                   </Link>
                 )}
-                <button onClick={handleLogout} className="text-gray-300 hover:text-red-400 transition flex items-center gap-1">
+                <button onClick={handleLogout} className="text-gray-300 hover:text-red-400 transition flex items-center gap-1" title="Déconnexion">
                   <LogOut size={18} />
                 </button>
               </div>
@@ -95,7 +99,7 @@ export default function Navbar() {
       {isOpen && (
         <div className="md:hidden bg-brand-navy border-t border-white/10 px-4 pt-2 pb-4 space-y-2">
           {navLinks.map((link) => (
-            <Link key={link.href} href={link.href} className="block text-gray-300 hover:text-white py-2" onClick={() => setIsOpen(false)}>
+            <Link key={link.name} href={link.href} className="block text-gray-300 hover:text-white py-2" onClick={() => setIsOpen(false)}>
               {link.name}
             </Link>
           ))}
