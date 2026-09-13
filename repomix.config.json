@@ -1,0 +1,47 @@
+{
+  "output": {
+    "filePath": "repomix-output.txt",
+    "style": "xml",
+    "parsableStyle": false,
+    "fileSummary": true,
+    "directoryStructure": true,
+    "removeComments": false,
+    "removeEmptyLines": true,
+    "topFilesLength": 20,
+    "showLineNumbers": false,
+    "copyToClipboard": false
+  },
+  "include": [
+    "src/**/*",
+    "public/**/*",
+    "package.json",
+    "tsconfig.json",
+    "next.config.*",
+    "tailwind.config.*"
+  ],
+  "ignore": {
+    "useGitignore": true,
+    "useDefaultPatterns": true,
+    "customPatterns": [
+      ".next/**",
+      ".netlify/**",
+      "node_modules/**",
+      "out/**",
+      "build/**",
+      "dist/**",
+      ".env*",
+      "*.env",
+      "**/*.ico",
+      "**/*.png",
+      "**/*.jpg",
+      "**/*.jpeg",
+      "**/*.svg",
+      "**/*.lock",
+      "package-lock.json",
+      "repomix-output.txt"
+    ]
+  },
+  "security": {
+    "enableSecurityCheck": true
+  }
+}
