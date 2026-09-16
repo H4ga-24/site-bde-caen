@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import { useEffect, useState } from "react";
 import { Menu, X, LogOut, Settings, Ticket } from "lucide-react";
@@ -60,8 +61,19 @@ export default function Navbar() {
     <nav className="bg-brand-navy border-b border-white/10 sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16 items-center">
-          <Link href="/" className="flex items-center text-white font-bold text-xl tracking-tight">
-            BDE <span className="text-brand-royal ml-1">ÉCO-GESTION</span>
+          {/* Logo + Marque */}
+          <Link href="/" className="flex items-center gap-3">
+            <Image
+              src="/logo.png"
+              alt="Logo BDE Éco-Gestion Caen"
+              width={38}
+              height={38}
+              className="h-9 w-auto object-contain rounded-md"
+              priority
+            />
+            <span className="text-white font-bold text-xl tracking-tight">
+              BDE <span className="text-brand-royal ml-1">ÉCO-GESTION</span>
+            </span>
           </Link>
 
           {/* Menu Desktop */}
@@ -114,7 +126,7 @@ export default function Navbar() {
             )}
           </div>
 
-          {/* Bouton Menu Mobile */}
+          {/* Bouton Hamburger Mobile */}
           <button
             className="md:hidden text-gray-300 p-2 rounded-md hover:text-white focus:outline-none"
             onClick={() => setIsOpen(!isOpen)}
@@ -125,7 +137,7 @@ export default function Navbar() {
         </div>
       </div>
 
-      {/* Menu Mobile Déroulant */}
+      {/* Menu Déroulant Mobile */}
       {isOpen && (
         <div className="md:hidden bg-brand-navy border-t border-white/10 px-4 pt-2 pb-5 space-y-3">
           {navLinks.map((link) => (
