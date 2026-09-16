@@ -1,11 +1,10 @@
 import Link from "next/link";
 import { Mail, ExternalLink, Ticket, BookOpen, Calendar, ShoppingBag, Scale } from "lucide-react";
 
-const HELLOASSO_LINK = "https://www.helloasso.com/associations/bde-licence-economie-gestion-caen/adhesions/passeport-eco-gestion-2026-2027-adhesion-et-avantages-bde";
+const HELLOASSO_LINK =
+  "https://www.helloasso.com/associations/bde-licence-economie-gestion-caen/adhesions/passeport-eco-gestion-2026-2027-adhesion-et-avantages-bde";
 
 export default function Footer() {
-  const currentYear = new Date().getFullYear();
-
   return (
     <footer className="bg-brand-navy text-gray-300 border-t border-white/10 mt-16">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -20,11 +19,11 @@ export default function Footer() {
             </p>
             <div className="flex items-center gap-3 pt-2">
               <a
-                href="https://www.instagram.com" 
+                href="https://www.instagram.com/bde.eco_gestion"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-9 h-9 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white flex items-center justify-center transition border border-white/5"
-                title="Instagram"
+                title="Instagram @bde.eco_gestion"
               >
                 <svg
                   className="w-4 h-4 fill-current"
@@ -133,7 +132,7 @@ export default function Footer() {
 
         {/* Ligne de copyright */}
         <div className="pt-8 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-gray-400">
-          <p>© {currentYear} BDE Éco-Gestion Caen. Tous droits réservés.</p>
+          <p>© 2026 BDE Éco-Gestion Caen. Tous droits réservés.</p>
           <p className="text-gray-400">
             Fait par et pour les étudiants d'Éco-Gestion
           </p>

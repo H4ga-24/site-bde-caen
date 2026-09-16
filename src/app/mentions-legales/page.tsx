@@ -11,7 +11,7 @@ export default function MentionsLegalesPage() {
           Mentions Légales & Données Personnelles
         </h1>
         <p className="text-gray-500 text-xs mt-1">
-          Dernière mise à jour : {new Date().toLocaleDateString("fr-FR", { year: "numeric", month: "long" })}
+          Dernière mise à jour : Septembre 2026
         </p>
       </div>
 
@@ -36,8 +36,8 @@ export default function MentionsLegalesPage() {
         </h2>
         <p>
           Le site web et les interfaces applicatives sont hébergés par :<br />
-          <strong>Netlify, Inc.</strong><br />
-          44 Montgomery Street, Suite 300, San Francisco, California 94104, USA.<br />
+          <strong>Vercel, Inc.</strong><br />
+          440 N Barranca Ave #4133, Covina, CA 91723, USA.<br />
           Base de données et services d'authentification assurés par <strong>Supabase, Inc.</strong>
         </p>
       </section>
