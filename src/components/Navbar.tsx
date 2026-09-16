@@ -4,14 +4,13 @@ import Link from "next/link";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import { useEffect, useState } from "react";
-import { Menu, X, LogOut, Settings, Ticket, Calendar, BookOpen, ShoppingBag } from "lucide-react";
+import { Menu, X, LogOut, Settings, Ticket } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 
 const HELLOASSO_LINK =
   "https://www.helloasso.com/associations/bde-licence-economie-gestion-caen/adhesions/passeport-eco-gestion-2026-2027-adhesion-et-avantages-bde";
 
 export default function Navbar() {
-  const [user, setUser] = useState<any>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const supabase = createClient();
@@ -19,27 +18,34 @@ export default function Navbar() {
   const pathname = usePathname();
 
   useEffect(() => {
-    const fetchUser = async () => {
+    const checkAdmin = async () => {
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      setUser(session?.user ?? null);
+
       if (session?.user) {
         const { data } = await supabase
           .from("profiles")
           .select("role")
           .eq("id", session.user.id)
           .single();
+
         setIsAdmin(data?.role === "admin");
+      } else {
+        setIsAdmin(false);
       }
     };
 
-    fetchUser();
+    checkAdmin();
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
+      if (!session?.user) {
+        setIsAdmin(false);
+      } else {
+        checkAdmin();
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -53,16 +59,16 @@ export default function Navbar() {
 
   const navLinks = [
     { name: "Accueil", href: "/" },
-    { name: "Cours", href: "/cours" },
+    { name: "Cours & Drives", href: "/cours" },
     { name: "Agenda", href: "/agenda" },
-    { name: "Boutique", href: isAdmin ? "/admin/boutique" : "/boutique" },
+    { name: "Boutique", href: "/boutique" },
   ];
 
   return (
     <header className="sticky top-0 z-50 px-4 sm:px-6 lg:px-8 pt-3 pb-2 backdrop-blur-md">
       <nav className="max-w-6xl mx-auto bg-slate-900/85 backdrop-blur-xl border border-white/10 rounded-2xl shadow-xl shadow-slate-950/20">
         <div className="flex items-center justify-between h-14 px-4 sm:px-6">
-          {/* Logo + Titre */}
+          {/* Logo */}
           <Link href="/" className="flex items-center gap-2.5 group">
             <div className="relative w-8 h-8 rounded-lg overflow-hidden flex items-center justify-center bg-white/5 border border-white/10">
               <Image
@@ -82,7 +88,7 @@ export default function Navbar() {
             </div>
           </Link>
 
-          {/* Onglets Desktop */}
+          {/* Liens Desktop */}
           <div className="hidden md:flex items-center gap-1 bg-white/5 px-2 py-1 rounded-xl border border-white/5">
             {navLinks.map((link) => {
               const isActive = pathname === link.href;
@@ -114,17 +120,16 @@ export default function Navbar() {
               <span>Adhérer (3,50 €)</span>
             </a>
 
-            {user ? (
+            {/* Menu Admin visible UNIQUEMENT si connecté */}
+            {isAdmin && (
               <div className="flex items-center gap-2 pl-2 border-l border-white/10">
-                {isAdmin && (
-                  <Link
-                    href="/admin"
-                    className="text-amber-400 hover:text-amber-300 p-1.5 rounded-lg hover:bg-white/5 transition"
-                    title="Administration"
-                  >
-                    <Settings size={16} />
-                  </Link>
-                )}
+                <Link
+                  href="/admin"
+                  className="text-amber-400 hover:text-amber-300 p-1.5 rounded-lg hover:bg-white/5 transition"
+                  title="Espace Bureau / Admin"
+                >
+                  <Settings size={16} />
+                </Link>
                 <button
                   onClick={handleLogout}
                   className="text-slate-400 hover:text-red-400 p-1.5 rounded-lg hover:bg-white/5 transition"
@@ -133,17 +138,10 @@ export default function Navbar() {
                   <LogOut size={16} />
                 </button>
               </div>
-            ) : (
-              <Link
-                href="/login"
-                className="text-xs font-semibold text-slate-300 hover:text-white px-3 py-2 rounded-xl hover:bg-white/5 transition"
-              >
-                Connexion
-              </Link>
             )}
           </div>
 
-          {/* Hamburger Mobile */}
+          {/* Mobile Hamburger */}
           <button
             className="md:hidden text-slate-300 p-1.5 rounded-lg hover:bg-white/5 focus:outline-none"
             onClick={() => setIsOpen(!isOpen)}
@@ -153,7 +151,7 @@ export default function Navbar() {
           </button>
         </div>
 
-        {/* Tiroir Mobile */}
+        {/* Menu Mobile */}
         {isOpen && (
           <div className="md:hidden border-t border-white/10 px-4 pt-3 pb-4 space-y-2">
             {navLinks.map((link) => (
@@ -179,29 +177,19 @@ export default function Navbar() {
                 <span>Adhérer (3,50 €)</span>
               </a>
 
-              {user ? (
+              {isAdmin && (
                 <div className="flex items-center justify-between px-2 pt-1 text-xs">
-                  {isAdmin && (
-                    <Link
-                      href="/admin"
-                      className="text-amber-400 font-semibold"
-                      onClick={() => setIsOpen(false)}
-                    >
-                      Panneau Admin
-                    </Link>
-                  )}
+                  <Link
+                    href="/admin"
+                    className="text-amber-400 font-semibold"
+                    onClick={() => setIsOpen(false)}
+                  >
+                    Panneau Admin
+                  </Link>
                   <button onClick={handleLogout} className="text-red-400 font-medium">
                     Déconnexion
                   </button>
                 </div>
-              ) : (
-                <Link
-                  href="/login"
-                  className="block text-center text-xs font-semibold text-slate-300 py-2 hover:text-white"
-                  onClick={() => setIsOpen(false)}
-                >
-                  Se connecter
-                </Link>
               )}
             </div>
           </div>

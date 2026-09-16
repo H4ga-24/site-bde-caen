@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Mail, ExternalLink, Ticket, BookOpen, Calendar, ShoppingBag, Scale } from "lucide-react";
+import { Mail, ExternalLink, Ticket, BookOpen, Calendar, ShoppingBag, Scale, Lock } from "lucide-react";
 
 const HELLOASSO_LINK =
   "https://www.helloasso.com/associations/bde-licence-economie-gestion-caen/adhesions/passeport-eco-gestion-2026-2027-adhesion-et-avantages-bde";
@@ -56,7 +56,7 @@ export default function Footer() {
               </li>
               <li>
                 <Link href="/cours" className="hover:text-white transition flex items-center gap-1.5">
-                  <BookOpen size={14} className="text-brand-royal" /> Cours & Annales
+                  <BookOpen size={14} className="text-brand-royal" /> Cours & Drives
                 </Link>
               </li>
               <li>
@@ -72,7 +72,7 @@ export default function Footer() {
             </ul>
           </div>
 
-          {/* Colonne 3 : Espace Membre & Adhésion */}
+          {/* Colonne 3 : Adhésion & Avantages */}
           <div>
             <h4 className="text-white font-semibold text-sm uppercase tracking-wider mb-4">
               Adhésion & Avantages
@@ -89,13 +89,8 @@ export default function Footer() {
                 </a>
               </li>
               <li>
-                <Link href="/login" className="hover:text-white transition">
-                  Se connecter à mon compte
-                </Link>
-              </li>
-              <li>
-                <span className="text-xs text-gray-400 block pt-1">
-                  Accès immédiat aux polycopiés et fiches de révisions L1 et L2 dès confirmation.
+                <span className="text-xs text-gray-400 block pt-1 leading-relaxed">
+                  Adhésion annuelle pour accéder aux tarifs réduits sur les soirées et soutenir les projets étudiants.
                 </span>
               </li>
             </ul>
@@ -130,12 +125,21 @@ export default function Footer() {
           </div>
         </div>
 
-        {/* Ligne de copyright */}
+        {/* Ligne de copyright & accès discret */}
         <div className="pt-8 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-gray-400">
           <p>© 2026 BDE Éco-Gestion Caen. Tous droits réservés.</p>
-          <p className="text-gray-400">
-            Fait par et pour les étudiants d'Éco-Gestion
-          </p>
+          <div className="flex items-center gap-4">
+            <span>Fait par et pour les étudiants d'Éco-Gestion</span>
+            <span className="text-white/20">•</span>
+            <Link
+              href="/admin"
+              className="inline-flex items-center gap-1 text-gray-500 hover:text-gray-300 transition text-[11px]"
+              title="Espace réservé aux membres du bureau"
+            >
+              <Lock size={11} />
+              <span>Accès Bureau</span>
+            </Link>
+          </div>
         </div>
       </div>
     </footer>
