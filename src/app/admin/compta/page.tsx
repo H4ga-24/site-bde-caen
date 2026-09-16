@@ -13,7 +13,8 @@ import {
   AlertCircle,
   UploadCloud,
   CheckCircle2,
-  ArrowLeft
+  ArrowLeft,
+  ShieldCheck
 } from "lucide-react";
 import Link from "next/link";
 
@@ -129,7 +130,7 @@ export default function ComptaPage() {
     }
   }
 
-  // Lecture et parsing automatique d'un classeur Excel HelloAsso ou relevé de compte
+  // Moteur d'import universel et intelligent HelloAsso
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -142,16 +143,19 @@ export default function ComptaPage() {
     reader.onload = async (evt) => {
       try {
         const bstr = evt.target?.result;
-        const wb = XLSX.read(bstr, { type: "binary" });
+        const wb = XLSX.read(bstr, { type: "binary", cellDates: true });
         const wsName = wb.SheetNames[0];
         const ws = wb.Sheets[wsName];
         const rows: Record<string, any>[] = XLSX.utils.sheet_to_json(ws);
 
         if (!rows || rows.length === 0) {
-          setErrorMessage("Le classeur sélectionné ne contient aucune ligne.");
+          setErrorMessage("Le classeur sélectionné est vide.");
           setFileLoading(false);
           return;
         }
+
+        // Récupérer les identifiants déjà présents en base pour éviter les doublons
+        const existingLabels = new Set(entries.map((item) => item.label));
 
         const newEntries: {
           label: string;
@@ -161,82 +165,96 @@ export default function ComptaPage() {
           payment_method: string;
         }[] = [];
 
+        let skippedDuplicates = 0;
+        let adminFreeCount = 0;
+
+        // Fonction de recherche tolérante sur les noms de colonnes
+        const getCol = (row: Record<string, any>, candidates: string[]) => {
+          for (const key of Object.keys(row)) {
+            const cleanKey = key.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            for (const cand of candidates) {
+              if (cleanKey === cand || cleanKey.startsWith(cand)) {
+                return row[key];
+              }
+            }
+          }
+          return null;
+        };
+
         rows.forEach((row) => {
-          // Extraction du montant multi-formats (HelloAsso, relevé bancaire, export standard)
-          const rawAmount =
-            row["Montant total"] ??
-            row["Montant"] ??
-            row["montant"] ??
-            row["Montant TTC"] ??
-            row["Credit"] ??
-            row["Crédit"] ??
-            row["Debit"] ??
-            row["Débit"] ??
-            row["Prix"] ??
-            null;
-
-          if (rawAmount === null || rawAmount === undefined) return;
-
-          const parsedNum = Math.abs(parseFloat(String(rawAmount).replace(",", ".").replace("€", "").trim()));
-          if (isNaN(parsedNum) || parsedNum <= 0) return;
-
-          // Détection automatique Recette vs Dépense
-          const isExpense =
-            String(rawAmount).includes("-") ||
-            Boolean(row["Debit"]) ||
-            Boolean(row["Débit"]) ||
-            String(row["Type"] || "").toLowerCase().includes("remboursement") ||
-            String(row["Type"] || "").toLowerCase().includes("depense");
-
-          // Détection du libellé / payeur
-          const rawLabel =
-            row["Payeur"] ??
-            row["Nom et prénom du payeur"] ??
-            row["Nom"] ??
-            row["Libellé"] ??
-            row["Description"] ??
-            row["Objet"] ??
-            `Import fichier ${file.name}`;
-
-          // Méthode de paiement
-          const detectedPayment =
-            row["Moyen de paiement"] ??
-            row["Mode de règlement"] ??
-            (file.name.toLowerCase().includes("helloasso") ? "HelloAsso" : "Virement Bancaire");
-
-          // Catégorisation intelligente
-          let detectedCategory = "Autre";
-          const lowerLabel = String(rawLabel).toLowerCase();
-          if (lowerLabel.includes("adhes") || lowerLabel.includes("passeport") || file.name.toLowerCase().includes("adhes")) {
-            detectedCategory = "Adhésion";
-          } else if (lowerLabel.includes("sweat") || lowerLabel.includes("goodie") || lowerLabel.includes("merch")) {
-            detectedCategory = "Boutique / Merch";
-          } else if (lowerLabel.includes("soiree") || lowerLabel.includes("gala") || lowerLabel.includes("afterwork")) {
-            detectedCategory = "Événements";
+          // Ignorer les commandes non validées si précisé
+          const status = String(getCol(row, ["statut de la commande", "statut", "status"]) || "").toLowerCase();
+          if (status && (status.includes("annul") || status.includes("refus") || status.includes("rembours"))) {
+            return;
           }
 
+          const refCmd = String(getCol(row, ["reference commande", "reference", "id commande"]) || "").trim();
+          const nom = String(getCol(row, ["nom adherent", "nom payeur", "nom"]) || "").trim();
+          const prenom = String(getCol(row, ["prenom adherent", "prenom payeur", "prenom"]) || "").trim();
+          const niveau = String(getCol(row, ["votre niveau dans la licence", "niveau", "promo"]) || "").trim();
+          const promoCode = String(getCol(row, ["code promo"]) || "").trim();
+
+          // Calcul du montant réel net payé (Tarif - Code Promo)
+          const rawTarif = getCol(row, ["montant tarif", "tarif", "montant total", "montant"]);
+          const rawPromo = getCol(row, ["montant code promo", "remise", "reduction"]);
+
+          const baseAmount = rawTarif !== null ? Math.abs(parseFloat(String(rawTarif).replace(",", "."))) : 3.5;
+          const promoDiscount = rawPromo !== null ? Math.abs(parseFloat(String(rawPromo).replace(",", "."))) : 0.0;
+
+          const netAmount = Math.round((baseAmount - (isNaN(promoDiscount) ? 0 : promoDiscount)) * 100) / 100;
+
+          // Si montant = 0 (ex: code ADMINBDE), on ne pollue pas la trésorerie bancaire
+          if (netAmount <= 0) {
+            adminFreeCount++;
+            return;
+          }
+
+          // Construction du libellé clair
+          let entryLabel = `${prenom} ${nom}`.trim();
+          if (niveau && niveau !== "nan") entryLabel += ` (${niveau})`;
+          if (promoCode && promoCode !== "nan") entryLabel += ` [${promoCode}]`;
+          if (refCmd && refCmd !== "nan") entryLabel += ` - Réf: ${refCmd}`;
+
+          // Vérification anti-doublon
+          if (existingLabels.has(entryLabel)) {
+            skippedDuplicates++;
+            return;
+          }
+
+          const rawMoyen = getCol(row, ["moyen de paiement", "mode de reglement"]);
+          const moyen = rawMoyen ? String(rawMoyen).trim() : "Carte bancaire (HelloAsso)";
+
           newEntries.push({
-            label: String(rawLabel).trim(),
-            amount: parsedNum,
-            type: isExpense ? "EXPENSE" : "INCOME",
-            category: detectedCategory,
-            payment_method: String(detectedPayment).trim(),
+            label: entryLabel,
+            amount: netAmount,
+            type: "INCOME",
+            category: "Adhésion",
+            payment_method: moyen,
           });
         });
 
         if (newEntries.length === 0) {
-          setErrorMessage("Impossible d'extraire des opérations valides du fichier. Vérifiez les intitulés de colonnes.");
+          if (skippedDuplicates > 0) {
+            setErrorMessage(`Toutes les adhésions (${skippedDuplicates}) sont déjà enregistrées dans la trésorerie.`);
+          } else {
+            setErrorMessage("Aucune nouvelle adhésion payante trouvée dans ce fichier.");
+          }
         } else {
           const { error } = await supabase.from("accounting_entries").insert(newEntries);
           if (error) {
-            setErrorMessage("Erreur lors de l'insertion dans Supabase : " + error.message);
+            setErrorMessage("Erreur lors de l'enregistrement dans la base : " + error.message);
           } else {
             await fetchEntries();
-            setSuccessMessage(`${newEntries.length} lignes importées avec succès depuis ${file.name}.`);
+            const totalCash = newEntries.reduce((s, e) => s + e.amount, 0).toFixed(2);
+            let msg = `✅ ${newEntries.length} adhésions importées avec succès (+${totalCash} €).`;
+            if (adminFreeCount > 0) msg += ` (${adminFreeCount} gratuites bureau écartées du livre bancaire)`;
+            if (skippedDuplicates > 0) msg += ` • ${skippedDuplicates} doublons ignorés.`;
+            setSuccessMessage(msg);
+            setTimeout(() => setSuccessMessage(null), 6000);
           }
         }
       } catch (err: any) {
-        setErrorMessage("Erreur de traitement du fichier Excel : " + (err?.message || "Format non reconnu."));
+        setErrorMessage("Erreur lors du traitement du fichier : " + (err?.message || "Format non reconnu."));
       } finally {
         setFileLoading(false);
         if (fileInputRef.current) fileInputRef.current.value = "";
@@ -298,7 +316,7 @@ export default function ComptaPage() {
             Trésorerie & Comptabilité BDE
           </h1>
           <p className="text-gray-500 text-sm mt-1">
-            Enregistrement des opérations, import de fichiers et suivi de solde.
+            Enregistrement des opérations, import HelloAsso automatique et suivi de solde.
           </p>
         </div>
 
@@ -361,22 +379,22 @@ export default function ComptaPage() {
         </div>
       </div>
 
-      {/* Module Import Excel / HelloAsso / Factures */}
+      {/* Module Import Excel Intelligent */}
       <div className="bg-gradient-to-br from-blue-50/60 to-indigo-50/60 border border-blue-200 rounded-2xl p-6">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="space-y-1 text-center sm:text-left">
             <h2 className="text-base font-bold text-blue-900 flex items-center justify-center sm:justify-start gap-2">
               <UploadCloud size={20} className="text-blue-600" />
-              Importer un fichier Excel / CSV (HelloAsso, Relevé bancaire)
+              Import Automatique HelloAsso
             </h2>
             <p className="text-xs text-blue-700/80 max-w-xl">
-              Glisse un export HelloAsso ou ton relevé de compte. Les montants, payeurs et libellés sont injectés directement dans ta comptabilité.
+              Glisse directement ton export Excel HelloAsso. Le système calcule les montants nets avec code promo, identifie la promo L1/L2 et bloque les doublons.
             </p>
           </div>
 
           <label className="cursor-pointer bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs px-4 py-2.5 rounded-xl shadow transition flex items-center gap-2 whitespace-nowrap">
             <FileSpreadsheet size={16} />
-            <span>{fileLoading ? "Traitement en cours..." : "Choisir un fichier"}</span>
+            <span>{fileLoading ? "Lecture du fichier..." : "Choisir un export HelloAsso"}</span>
             <input
               ref={fileInputRef}
               type="file"
@@ -388,11 +406,11 @@ export default function ComptaPage() {
         </div>
       </div>
 
-      {/* Formulaire d'ajout manuel / Facture */}
+      {/* Formulaire d'écriture manuelle */}
       <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
         <h2 className="text-base font-bold text-gray-900 mb-4 flex items-center gap-2">
           <PlusCircle size={20} className="text-blue-600" />
-          Nouvelle écriture ou saisie de facture
+          Nouvelle écriture manuelle ou facture
         </h2>
 
         <form onSubmit={handleAddEntry} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
@@ -401,7 +419,7 @@ export default function ComptaPage() {
             <input
               type="text"
               required
-              placeholder="Ex: Facture Impression Goodies, Soirée..."
+              placeholder="Ex: Facture Impression Goodies, Achat boisson..."
               value={label}
               onChange={(e) => setLabel(e.target.value)}
               className="w-full px-3.5 py-2 rounded-xl border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -412,7 +430,7 @@ export default function ComptaPage() {
             <label className="block text-xs font-semibold text-gray-600 mb-1">Réf. Facture (optionnel)</label>
             <input
               type="text"
-              placeholder="Ex: FAC-2026-04"
+              placeholder="Ex: FAC-2026-01"
               value={invoiceRef}
               onChange={(e) => setInvoiceRef(e.target.value)}
               className="w-full px-3.5 py-2 rounded-xl border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -486,7 +504,7 @@ export default function ComptaPage() {
         </form>
       </div>
 
-      {/* Tableau des écritures */}
+      {/* Tableau des opérations */}
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="p-4 sm:px-6 border-b border-gray-200 flex items-center justify-between">
           <h3 className="font-bold text-gray-900 text-sm">Journal des Opérations ({entries.length})</h3>
