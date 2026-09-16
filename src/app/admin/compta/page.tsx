@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import * as XLSX from "xlsx";
 import {
@@ -10,8 +10,12 @@ import {
   TrendingUp,
   Wallet,
   Trash2,
-  AlertCircle
+  AlertCircle,
+  UploadCloud,
+  CheckCircle2,
+  ArrowLeft
 } from "lucide-react";
+import Link from "next/link";
 
 interface Entry {
   id: string;
@@ -27,14 +31,19 @@ export default function ComptaPage() {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [fileLoading, setFileLoading] = useState(false);
 
-  // Formulaire
+  // Formulaire d'écriture manuelle / facture
   const [label, setLabel] = useState("");
+  const [invoiceRef, setInvoiceRef] = useState("");
   const [amount, setAmount] = useState("");
   const [type, setType] = useState<"INCOME" | "EXPENSE">("INCOME");
   const [category, setCategory] = useState("Adhésion");
   const [paymentMethod, setPaymentMethod] = useState("HelloAsso");
   const [submitting, setSubmitting] = useState(false);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchEntries();
@@ -71,11 +80,13 @@ export default function ComptaPage() {
       return;
     }
 
+    const fullLabel = invoiceRef.trim() ? `${label.trim()} (Facture: ${invoiceRef.trim()})` : label.trim();
+
     const { data, error } = await supabase
       .from("accounting_entries")
       .insert([
         {
-          label,
+          label: fullLabel,
           amount: parsedAmount,
           type,
           category,
@@ -91,10 +102,14 @@ export default function ComptaPage() {
       setEntries((prev) => [data[0], ...prev]);
       setLabel("");
       setAmount("");
+      setInvoiceRef("");
+      setSuccessMessage("Écriture comptable ajoutée avec succès.");
+      setTimeout(() => setSuccessMessage(null), 3500);
     } else {
       fetchEntries();
       setLabel("");
       setAmount("");
+      setInvoiceRef("");
     }
     setSubmitting(false);
   }
@@ -112,6 +127,123 @@ export default function ComptaPage() {
     } else {
       setEntries((prev) => prev.filter((item) => item.id !== id));
     }
+  }
+
+  // Lecture et parsing automatique d'un classeur Excel HelloAsso ou relevé de compte
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setFileLoading(true);
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: "binary" });
+        const wsName = wb.SheetNames[0];
+        const ws = wb.Sheets[wsName];
+        const rows: Record<string, any>[] = XLSX.utils.sheet_to_json(ws);
+
+        if (!rows || rows.length === 0) {
+          setErrorMessage("Le classeur sélectionné ne contient aucune ligne.");
+          setFileLoading(false);
+          return;
+        }
+
+        const newEntries: {
+          label: string;
+          amount: number;
+          type: "INCOME" | "EXPENSE";
+          category: string;
+          payment_method: string;
+        }[] = [];
+
+        rows.forEach((row) => {
+          // Extraction du montant multi-formats (HelloAsso, relevé bancaire, export standard)
+          const rawAmount =
+            row["Montant total"] ??
+            row["Montant"] ??
+            row["montant"] ??
+            row["Montant TTC"] ??
+            row["Credit"] ??
+            row["Crédit"] ??
+            row["Debit"] ??
+            row["Débit"] ??
+            row["Prix"] ??
+            null;
+
+          if (rawAmount === null || rawAmount === undefined) return;
+
+          const parsedNum = Math.abs(parseFloat(String(rawAmount).replace(",", ".").replace("€", "").trim()));
+          if (isNaN(parsedNum) || parsedNum <= 0) return;
+
+          // Détection automatique Recette vs Dépense
+          const isExpense =
+            String(rawAmount).includes("-") ||
+            Boolean(row["Debit"]) ||
+            Boolean(row["Débit"]) ||
+            String(row["Type"] || "").toLowerCase().includes("remboursement") ||
+            String(row["Type"] || "").toLowerCase().includes("depense");
+
+          // Détection du libellé / payeur
+          const rawLabel =
+            row["Payeur"] ??
+            row["Nom et prénom du payeur"] ??
+            row["Nom"] ??
+            row["Libellé"] ??
+            row["Description"] ??
+            row["Objet"] ??
+            `Import fichier ${file.name}`;
+
+          // Méthode de paiement
+          const detectedPayment =
+            row["Moyen de paiement"] ??
+            row["Mode de règlement"] ??
+            (file.name.toLowerCase().includes("helloasso") ? "HelloAsso" : "Virement Bancaire");
+
+          // Catégorisation intelligente
+          let detectedCategory = "Autre";
+          const lowerLabel = String(rawLabel).toLowerCase();
+          if (lowerLabel.includes("adhes") || lowerLabel.includes("passeport") || file.name.toLowerCase().includes("adhes")) {
+            detectedCategory = "Adhésion";
+          } else if (lowerLabel.includes("sweat") || lowerLabel.includes("goodie") || lowerLabel.includes("merch")) {
+            detectedCategory = "Boutique / Merch";
+          } else if (lowerLabel.includes("soiree") || lowerLabel.includes("gala") || lowerLabel.includes("afterwork")) {
+            detectedCategory = "Événements";
+          }
+
+          newEntries.push({
+            label: String(rawLabel).trim(),
+            amount: parsedNum,
+            type: isExpense ? "EXPENSE" : "INCOME",
+            category: detectedCategory,
+            payment_method: String(detectedPayment).trim(),
+          });
+        });
+
+        if (newEntries.length === 0) {
+          setErrorMessage("Impossible d'extraire des opérations valides du fichier. Vérifiez les intitulés de colonnes.");
+        } else {
+          const { error } = await supabase.from("accounting_entries").insert(newEntries);
+          if (error) {
+            setErrorMessage("Erreur lors de l'insertion dans Supabase : " + error.message);
+          } else {
+            await fetchEntries();
+            setSuccessMessage(`${newEntries.length} lignes importées avec succès depuis ${file.name}.`);
+          }
+        }
+      } catch (err: any) {
+        setErrorMessage("Erreur de traitement du fichier Excel : " + (err?.message || "Format non reconnu."));
+      } finally {
+        setFileLoading(false);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+      }
+    };
+
+    reader.readAsBinaryString(file);
   }
 
   function exportToExcel() {
@@ -151,25 +283,35 @@ export default function ComptaPage() {
 
   return (
     <div className="min-h-screen max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
+      {/* En-tête */}
       <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 pb-6 border-b border-gray-200">
         <div>
+          <div className="flex items-center gap-2 mb-2">
+            <Link
+              href="/admin"
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-gray-900 transition"
+            >
+              <ArrowLeft size={14} /> Retour au tableau de bord
+            </Link>
+          </div>
           <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">
-            Trésorerie & Comptabilité
+            Trésorerie & Comptabilité BDE
           </h1>
           <p className="text-gray-500 text-sm mt-1">
-            Enregistrement des opérations et suivi du solde associatif.
+            Enregistrement des opérations, import de fichiers et suivi de solde.
           </p>
         </div>
 
         <button
           onClick={exportToExcel}
-          className="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4 py-2.5 rounded-xl shadow transition text-sm"
+          className="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4 py-2.5 rounded-xl shadow transition text-sm self-start sm:self-auto"
         >
           <FileSpreadsheet size={18} />
           Exporter en Excel (.xlsx)
         </button>
       </div>
 
+      {/* Alertes d'état */}
       {errorMessage && (
         <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm flex items-center gap-3">
           <AlertCircle size={20} className="shrink-0 text-red-500" />
@@ -177,7 +319,14 @@ export default function ComptaPage() {
         </div>
       )}
 
-      {/* Cartes de synthèse */}
+      {successMessage && (
+        <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm flex items-center gap-3">
+          <CheckCircle2 size={20} className="shrink-0 text-emerald-600" />
+          <span>{successMessage}</span>
+        </div>
+      )}
+
+      {/* Cartes de synthèse financière */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex items-center gap-4">
           <div className="p-3.5 rounded-xl bg-emerald-100 text-emerald-600">
@@ -212,22 +361,60 @@ export default function ComptaPage() {
         </div>
       </div>
 
-      {/* Formulaire d'ajout */}
+      {/* Module Import Excel / HelloAsso / Factures */}
+      <div className="bg-gradient-to-br from-blue-50/60 to-indigo-50/60 border border-blue-200 rounded-2xl p-6">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="space-y-1 text-center sm:text-left">
+            <h2 className="text-base font-bold text-blue-900 flex items-center justify-center sm:justify-start gap-2">
+              <UploadCloud size={20} className="text-blue-600" />
+              Importer un fichier Excel / CSV (HelloAsso, Relevé bancaire)
+            </h2>
+            <p className="text-xs text-blue-700/80 max-w-xl">
+              Glisse un export HelloAsso ou ton relevé de compte. Les montants, payeurs et libellés sont injectés directement dans ta comptabilité.
+            </p>
+          </div>
+
+          <label className="cursor-pointer bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs px-4 py-2.5 rounded-xl shadow transition flex items-center gap-2 whitespace-nowrap">
+            <FileSpreadsheet size={16} />
+            <span>{fileLoading ? "Traitement en cours..." : "Choisir un fichier"}</span>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx, .xls, .csv"
+              onChange={handleFileUpload}
+              className="hidden"
+            />
+          </label>
+        </div>
+      </div>
+
+      {/* Formulaire d'ajout manuel / Facture */}
       <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
-        <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+        <h2 className="text-base font-bold text-gray-900 mb-4 flex items-center gap-2">
           <PlusCircle size={20} className="text-blue-600" />
-          Nouvelle écriture
+          Nouvelle écriture ou saisie de facture
         </h2>
 
-        <form onSubmit={handleAddEntry} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <form onSubmit={handleAddEntry} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
           <div className="lg:col-span-2">
-            <label className="block text-xs font-semibold text-gray-600 mb-1">Intitulé</label>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Intitulé / Bénéficiaire</label>
             <input
               type="text"
               required
-              placeholder="Ex: Vente Sweat promo, Achat gobelets..."
+              placeholder="Ex: Facture Impression Goodies, Soirée..."
               value={label}
               onChange={(e) => setLabel(e.target.value)}
+              className="w-full px-3.5 py-2 rounded-xl border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Réf. Facture (optionnel)</label>
+            <input
+              type="text"
+              placeholder="Ex: FAC-2026-04"
+              value={invoiceRef}
+              onChange={(e) => setInvoiceRef(e.target.value)}
               className="w-full px-3.5 py-2 rounded-xl border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -256,13 +443,44 @@ export default function ComptaPage() {
             </select>
           </div>
 
-          <div className="flex items-end">
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Catégorie</label>
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className="w-full px-3.5 py-2 rounded-xl border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+            >
+              <option value="Adhésion">Adhésion</option>
+              <option value="Événements">Événements</option>
+              <option value="Boutique / Merch">Boutique / Merch</option>
+              <option value="Fournitures & Boissons">Fournitures & Boissons</option>
+              <option value="Frais Bancaires / Assurances">Frais Bancaires / Assurances</option>
+              <option value="Autre">Autre</option>
+            </select>
+          </div>
+
+          <div className="sm:col-span-2 lg:col-span-2">
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Moyen de paiement</label>
+            <select
+              value={paymentMethod}
+              onChange={(e) => setPaymentMethod(e.target.value)}
+              className="w-full px-3.5 py-2 rounded-xl border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+            >
+              <option value="HelloAsso">HelloAsso</option>
+              <option value="Carte Bancaire">Carte Bancaire</option>
+              <option value="Virement Bancaire">Virement Bancaire</option>
+              <option value="Espèces">Espèces</option>
+              <option value="Chèque">Chèque</option>
+            </select>
+          </div>
+
+          <div className="flex items-end sm:col-span-2 lg:col-span-4">
             <button
               type="submit"
               disabled={submitting}
               className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold py-2 rounded-xl transition text-sm shadow"
             >
-              {submitting ? "Ajout..." : "Ajouter"}
+              {submitting ? "Ajout en cours..." : "Enregistrer dans le journal"}
             </button>
           </div>
         </form>
@@ -270,8 +488,8 @@ export default function ComptaPage() {
 
       {/* Tableau des écritures */}
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-        <div className="p-4 sm:px-6 border-b border-gray-200">
-          <h3 className="font-bold text-gray-900">Journal des Opérations</h3>
+        <div className="p-4 sm:px-6 border-b border-gray-200 flex items-center justify-between">
+          <h3 className="font-bold text-gray-900 text-sm">Journal des Opérations ({entries.length})</h3>
         </div>
 
         {loading ? (
@@ -285,7 +503,8 @@ export default function ComptaPage() {
                 <tr>
                   <th className="px-6 py-3">Date</th>
                   <th className="px-6 py-3">Intitulé</th>
-                  <th className="px-6 py-3">Type</th>
+                  <th className="px-6 py-3">Catégorie</th>
+                  <th className="px-6 py-3">Paiement</th>
                   <th className="px-6 py-3">Montant</th>
                   <th className="px-6 py-3 text-right">Action</th>
                 </tr>
@@ -293,23 +512,14 @@ export default function ComptaPage() {
               <tbody className="divide-y divide-gray-200">
                 {entries.map((item) => (
                   <tr key={item.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-3.5 text-gray-500">
+                    <td className="px-6 py-3.5 text-gray-500 text-xs">
                       {new Date(item.created_at).toLocaleDateString("fr-FR")}
                     </td>
-                    <td className="px-6 py-3.5 font-medium text-gray-900">{item.label}</td>
-                    <td className="px-6 py-3.5">
-                      <span
-                        className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${
-                          item.type === "INCOME"
-                            ? "bg-emerald-100 text-emerald-700"
-                            : "bg-red-100 text-red-700"
-                        }`}
-                      >
-                        {item.type === "INCOME" ? "Recette" : "Dépense"}
-                      </span>
-                    </td>
+                    <td className="px-6 py-3.5 font-medium text-gray-900 text-xs">{item.label}</td>
+                    <td className="px-6 py-3.5 text-xs text-gray-600">{item.category}</td>
+                    <td className="px-6 py-3.5 text-xs text-gray-500">{item.payment_method}</td>
                     <td
-                      className={`px-6 py-3.5 font-bold ${
+                      className={`px-6 py-3.5 font-bold text-xs ${
                         item.type === "INCOME" ? "text-emerald-600" : "text-red-600"
                       }`}
                     >
@@ -319,7 +529,7 @@ export default function ComptaPage() {
                     <td className="px-6 py-3.5 text-right">
                       <button
                         onClick={() => handleDelete(item.id)}
-                        className="text-gray-400 hover:text-red-600 transition"
+                        className="text-gray-400 hover:text-red-600 transition p-1"
                         title="Supprimer"
                       >
                         <Trash2 size={16} />
