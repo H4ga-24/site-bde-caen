@@ -62,6 +62,7 @@ export default function Navbar() {
     { name: "Simulateur", href: "/simulateur" },
     { name: "Cours", href: "/cours" },
     { name: "Agenda", href: "/agenda" },
+    { name: "Merch", href: "/boutique" },
   ];
 
   return (
