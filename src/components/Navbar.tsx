@@ -4,8 +4,8 @@ import Link from "next/link";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import { useEffect, useState } from "react";
-import { Menu, X, LogOut, Settings, Ticket } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { Menu, X, LogOut, Settings, Ticket, Calendar, BookOpen, ShoppingBag } from "lucide-react";
+import { useRouter, usePathname } from "next/navigation";
 
 const HELLOASSO_LINK =
   "https://www.helloasso.com/associations/bde-licence-economie-gestion-caen/adhesions/passeport-eco-gestion-2026-2027-adhesion-et-avantages-bde";
@@ -16,6 +16,7 @@ export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const supabase = createClient();
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -53,147 +54,159 @@ export default function Navbar() {
   const navLinks = [
     { name: "Accueil", href: "/" },
     { name: "Cours", href: "/cours" },
-    { name: "Boutique", href: isAdmin ? "/admin/boutique" : "/boutique" },
     { name: "Agenda", href: "/agenda" },
+    { name: "Boutique", href: isAdmin ? "/admin/boutique" : "/boutique" },
   ];
 
   return (
-    <nav className="bg-brand-navy border-b border-white/10 sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between h-16 items-center">
-          {/* Logo + Marque */}
-          <Link href="/" className="flex items-center gap-3">
-            <Image
-              src="/logo.png"
-              alt="Logo BDE Éco-Gestion Caen"
-              width={38}
-              height={38}
-              className="h-9 w-auto object-contain rounded-md"
-              priority
-            />
-            <span className="text-white font-bold text-xl tracking-tight">
-              BDE <span className="text-brand-royal ml-1">ÉCO-GESTION</span>
-            </span>
+    <header className="sticky top-0 z-50 px-4 sm:px-6 lg:px-8 pt-3 pb-2 backdrop-blur-md">
+      <nav className="max-w-6xl mx-auto bg-slate-900/85 backdrop-blur-xl border border-white/10 rounded-2xl shadow-xl shadow-slate-950/20">
+        <div className="flex items-center justify-between h-14 px-4 sm:px-6">
+          {/* Logo + Titre */}
+          <Link href="/" className="flex items-center gap-2.5 group">
+            <div className="relative w-8 h-8 rounded-lg overflow-hidden flex items-center justify-center bg-white/5 border border-white/10">
+              <Image
+                src="/logo.png"
+                alt="Logo BDE"
+                width={32}
+                height={32}
+                className="object-contain p-0.5"
+                priority
+              />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-white font-extrabold text-sm tracking-tight group-hover:text-blue-400 transition-colors">
+                BDE <span className="text-amber-400">ÉCO-GESTION</span>
+              </span>
+              <span className="text-[10px] text-slate-400 font-medium tracking-wide">CAEN</span>
+            </div>
           </Link>
 
-          {/* Menu Desktop */}
-          <div className="hidden md:flex space-x-6 items-center">
-            {navLinks.map((link) => (
-              <Link
-                key={link.name}
-                href={link.href}
-                className="text-gray-300 hover:text-white transition font-medium text-sm"
-              >
-                {link.name}
-              </Link>
-            ))}
+          {/* Onglets Desktop */}
+          <div className="hidden md:flex items-center gap-1 bg-white/5 px-2 py-1 rounded-xl border border-white/5">
+            {navLinks.map((link) => {
+              const isActive = pathname === link.href;
+              return (
+                <Link
+                  key={link.name}
+                  href={link.href}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    isActive
+                      ? "bg-white/10 text-white shadow-sm"
+                      : "text-slate-300 hover:text-white hover:bg-white/5"
+                  }`}
+                >
+                  {link.name}
+                </Link>
+              );
+            })}
+          </div>
 
+          {/* Actions Droite */}
+          <div className="hidden md:flex items-center gap-3">
             <a
               href={HELLOASSO_LINK}
               target="_blank"
               rel="noopener noreferrer"
-              className="bg-brand-gold hover:bg-yellow-500 text-brand-navy font-bold px-4 py-2 rounded-lg text-sm transition flex items-center gap-2 shadow-sm"
+              className="inline-flex items-center gap-1.5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-slate-950 font-bold text-xs px-3.5 py-2 rounded-xl shadow-md shadow-amber-500/10 transition-all transform hover:scale-105 active:scale-95"
             >
-              <Ticket size={16} />
+              <Ticket size={14} />
               <span>Adhérer (3,50 €)</span>
             </a>
 
             {user ? (
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2 pl-2 border-l border-white/10">
                 {isAdmin && (
                   <Link
                     href="/admin"
-                    className="text-brand-gold hover:text-yellow-400 flex items-center gap-1 text-sm font-semibold"
+                    className="text-amber-400 hover:text-amber-300 p-1.5 rounded-lg hover:bg-white/5 transition"
+                    title="Administration"
                   >
-                    <Settings size={18} /> Admin
+                    <Settings size={16} />
                   </Link>
                 )}
                 <button
                   onClick={handleLogout}
-                  className="text-gray-300 hover:text-red-400 transition flex items-center gap-1"
+                  className="text-slate-400 hover:text-red-400 p-1.5 rounded-lg hover:bg-white/5 transition"
                   title="Déconnexion"
                 >
-                  <LogOut size={18} />
+                  <LogOut size={16} />
                 </button>
               </div>
             ) : (
               <Link
                 href="/login"
-                className="bg-brand-royal hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm"
+                className="text-xs font-semibold text-slate-300 hover:text-white px-3 py-2 rounded-xl hover:bg-white/5 transition"
               >
                 Connexion
               </Link>
             )}
           </div>
 
-          {/* Bouton Hamburger Mobile */}
+          {/* Hamburger Mobile */}
           <button
-            className="md:hidden text-gray-300 p-2 rounded-md hover:text-white focus:outline-none"
+            className="md:hidden text-slate-300 p-1.5 rounded-lg hover:bg-white/5 focus:outline-none"
             onClick={() => setIsOpen(!isOpen)}
             aria-label="Menu"
           >
-            {isOpen ? <X size={24} /> : <Menu size={24} />}
+            {isOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
         </div>
-      </div>
 
-      {/* Menu Déroulant Mobile */}
-      {isOpen && (
-        <div className="md:hidden bg-brand-navy border-t border-white/10 px-4 pt-2 pb-5 space-y-3">
-          {navLinks.map((link) => (
-            <Link
-              key={link.name}
-              href={link.href}
-              className="block text-gray-300 hover:text-white py-2 font-medium"
-              onClick={() => setIsOpen(false)}
-            >
-              {link.name}
-            </Link>
-          ))}
+        {/* Tiroir Mobile */}
+        {isOpen && (
+          <div className="md:hidden border-t border-white/10 px-4 pt-3 pb-4 space-y-2">
+            {navLinks.map((link) => (
+              <Link
+                key={link.name}
+                href={link.href}
+                className="block text-slate-300 hover:text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-white/5 transition"
+                onClick={() => setIsOpen(false)}
+              >
+                {link.name}
+              </Link>
+            ))}
 
-          <a
-            href={HELLOASSO_LINK}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center justify-center gap-2 bg-brand-gold text-brand-navy font-bold text-center py-2.5 rounded-lg my-2 text-sm shadow-sm"
-            onClick={() => setIsOpen(false)}
-          >
-            <Ticket size={16} />
-            <span>Adhérer (3,50 €)</span>
-          </a>
+            <div className="pt-2 border-t border-white/10 space-y-2">
+              <a
+                href={HELLOASSO_LINK}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 bg-amber-400 text-slate-950 font-bold py-2.5 rounded-xl text-xs shadow-sm"
+                onClick={() => setIsOpen(false)}
+              >
+                <Ticket size={14} />
+                <span>Adhérer (3,50 €)</span>
+              </a>
 
-          {user ? (
-            <div className="pt-2 border-t border-white/10 flex items-center justify-between">
-              {isAdmin && (
+              {user ? (
+                <div className="flex items-center justify-between px-2 pt-1 text-xs">
+                  {isAdmin && (
+                    <Link
+                      href="/admin"
+                      className="text-amber-400 font-semibold"
+                      onClick={() => setIsOpen(false)}
+                    >
+                      Panneau Admin
+                    </Link>
+                  )}
+                  <button onClick={handleLogout} className="text-red-400 font-medium">
+                    Déconnexion
+                  </button>
+                </div>
+              ) : (
                 <Link
-                  href="/admin"
-                  className="text-brand-gold hover:text-yellow-400 flex items-center gap-1 text-sm font-semibold"
+                  href="/login"
+                  className="block text-center text-xs font-semibold text-slate-300 py-2 hover:text-white"
                   onClick={() => setIsOpen(false)}
                 >
-                  <Settings size={18} /> Panel Admin
+                  Se connecter
                 </Link>
               )}
-              <button
-                onClick={() => {
-                  handleLogout();
-                  setIsOpen(false);
-                }}
-                className="text-gray-300 hover:text-red-400 flex items-center gap-1 text-sm"
-              >
-                <LogOut size={18} /> Déconnexion
-              </button>
             </div>
-          ) : (
-            <Link
-              href="/login"
-              className="block text-brand-royal font-semibold py-2 text-center bg-white/5 rounded-lg"
-              onClick={() => setIsOpen(false)}
-            >
-              Connexion
-            </Link>
-          )}
-        </div>
-      )}
-    </nav>
+          </div>
+        )}
+      </nav>
+    </header>
   );
 }
