@@ -59,9 +59,9 @@ export default function Navbar() {
 
   const navLinks = [
     { name: "Accueil", href: "/" },
-    { name: "Cours & Drives", href: "/cours" },
+    { name: "Simulateur", href: "/simulateur" },
+    { name: "Cours", href: "/cours" },
     { name: "Agenda", href: "/agenda" },
-    { name: "Boutique", href: "/boutique" },
   ];
 
   return (
@@ -120,7 +120,6 @@ export default function Navbar() {
               <span>Adhérer (3,50 €)</span>
             </a>
 
-            {/* Menu Admin visible UNIQUEMENT si connecté */}
             {isAdmin && (
               <div className="flex items-center gap-2 pl-2 border-l border-white/10">
                 <Link
