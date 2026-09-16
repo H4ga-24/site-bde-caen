@@ -13,8 +13,7 @@ import {
   AlertCircle,
   UploadCloud,
   CheckCircle2,
-  ArrowLeft,
-  ShieldCheck
+  ArrowLeft
 } from "lucide-react";
 import Link from "next/link";
 
@@ -88,7 +87,7 @@ export default function ComptaPage() {
       .insert([
         {
           label: fullLabel,
-          amount: parsedAmount,
+          amount: Number(parsedAmount.toFixed(2)),
           type,
           category,
           payment_method: paymentMethod,
@@ -154,7 +153,6 @@ export default function ComptaPage() {
           return;
         }
 
-        // Récupérer les identifiants déjà présents en base pour éviter les doublons
         const existingLabels = new Set(entries.map((item) => item.label));
 
         const newEntries: {
@@ -168,7 +166,7 @@ export default function ComptaPage() {
         let skippedDuplicates = 0;
         let adminFreeCount = 0;
 
-        // Fonction de recherche tolérante sur les noms de colonnes
+        // Fonction de recherche tolérante sur les clés du tableau
         const getCol = (row: Record<string, any>, candidates: string[]) => {
           for (const key of Object.keys(row)) {
             const cleanKey = key.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -182,7 +180,7 @@ export default function ComptaPage() {
         };
 
         rows.forEach((row) => {
-          // Ignorer les commandes non validées si précisé
+          // Ignorer les commandes annulées / refusées
           const status = String(getCol(row, ["statut de la commande", "statut", "status"]) || "").toLowerCase();
           if (status && (status.includes("annul") || status.includes("refus") || status.includes("rembours"))) {
             return;
@@ -194,28 +192,35 @@ export default function ComptaPage() {
           const niveau = String(getCol(row, ["votre niveau dans la licence", "niveau", "promo"]) || "").trim();
           const promoCode = String(getCol(row, ["code promo"]) || "").trim();
 
-          // Calcul du montant réel net payé (Tarif - Code Promo)
+          // Calcul du montant net payé (Tarif - Code Promo)
           const rawTarif = getCol(row, ["montant tarif", "tarif", "montant total", "montant"]);
           const rawPromo = getCol(row, ["montant code promo", "remise", "reduction"]);
 
-          const baseAmount = rawTarif !== null ? Math.abs(parseFloat(String(rawTarif).replace(",", "."))) : 3.5;
-          const promoDiscount = rawPromo !== null ? Math.abs(parseFloat(String(rawPromo).replace(",", "."))) : 0.0;
+          let baseAmount = 3.5;
+          if (rawTarif !== null && rawTarif !== undefined && rawTarif !== "") {
+            const num = parseFloat(String(rawTarif).replace(",", ".").replace("€", "").trim());
+            if (!isNaN(num)) baseAmount = num;
+          }
 
-          const netAmount = Math.round((baseAmount - (isNaN(promoDiscount) ? 0 : promoDiscount)) * 100) / 100;
+          let promoDiscount = 0.0;
+          if (rawPromo !== null && rawPromo !== undefined && rawPromo !== "") {
+            const disc = parseFloat(String(rawPromo).replace(",", ".").replace("€", "").trim());
+            if (!isNaN(disc)) promoDiscount = disc;
+          }
 
-          // Si montant = 0 (ex: code ADMINBDE), on ne pollue pas la trésorerie bancaire
-          if (netAmount <= 0) {
+          const netAmount = Math.round((baseAmount - promoDiscount) * 100) / 100;
+
+          // Si le montant n'est pas strictement positif ou n'est pas un nombre valide, on l'écarte
+          if (isNaN(netAmount) || netAmount <= 0) {
             adminFreeCount++;
             return;
           }
 
-          // Construction du libellé clair
           let entryLabel = `${prenom} ${nom}`.trim();
           if (niveau && niveau !== "nan") entryLabel += ` (${niveau})`;
           if (promoCode && promoCode !== "nan") entryLabel += ` [${promoCode}]`;
           if (refCmd && refCmd !== "nan") entryLabel += ` - Réf: ${refCmd}`;
 
-          // Vérification anti-doublon
           if (existingLabels.has(entryLabel)) {
             skippedDuplicates++;
             return;
@@ -226,7 +231,7 @@ export default function ComptaPage() {
 
           newEntries.push({
             label: entryLabel,
-            amount: netAmount,
+            amount: Number(netAmount.toFixed(2)),
             type: "INCOME",
             category: "Adhésion",
             payment_method: moyen,
@@ -235,9 +240,9 @@ export default function ComptaPage() {
 
         if (newEntries.length === 0) {
           if (skippedDuplicates > 0) {
-            setErrorMessage(`Toutes les adhésions (${skippedDuplicates}) sont déjà enregistrées dans la trésorerie.`);
+            setErrorMessage(`Toutes les adhésions payantes (${skippedDuplicates}) sont déjà présentes en base.`);
           } else {
-            setErrorMessage("Aucune nouvelle adhésion payante trouvée dans ce fichier.");
+            setErrorMessage("Aucune adhésion payante valide détectée.");
           }
         } else {
           const { error } = await supabase.from("accounting_entries").insert(newEntries);
@@ -246,9 +251,9 @@ export default function ComptaPage() {
           } else {
             await fetchEntries();
             const totalCash = newEntries.reduce((s, e) => s + e.amount, 0).toFixed(2);
-            let msg = `✅ ${newEntries.length} adhésions importées avec succès (+${totalCash} €).`;
-            if (adminFreeCount > 0) msg += ` (${adminFreeCount} gratuites bureau écartées du livre bancaire)`;
-            if (skippedDuplicates > 0) msg += ` • ${skippedDuplicates} doublons ignorés.`;
+            let msg = `✅ ${newEntries.length} adhésions enregistrées (+${totalCash} €).`;
+            if (adminFreeCount > 0) msg += ` • ${adminFreeCount} gratuités écartées`;
+            if (skippedDuplicates > 0) msg += ` • ${skippedDuplicates} doublons ignorés`;
             setSuccessMessage(msg);
             setTimeout(() => setSuccessMessage(null), 6000);
           }
