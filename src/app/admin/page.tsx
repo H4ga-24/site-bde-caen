@@ -13,7 +13,8 @@ import {
   ArrowRight,
   Lock,
   LogOut,
-  Calendar
+  Calendar,
+  Lightbulb
 } from "lucide-react";
 
 export default function AdminPage() {
@@ -76,11 +77,19 @@ export default function AdminPage() {
       badge: "Synchro Active",
     },
     {
+      title: "Boîte à Idées & Retours",
+      description: "Consultation, tri par thème et gestion des suggestions anonymes envoyées par les étudiants.",
+      href: "/admin/idees",
+      icon: Lightbulb,
+      color: "bg-amber-500",
+      badge: "Nouveau",
+    },
+    {
       title: "Gestion des Événements & Réunions",
       description: "Publication sur l'agenda public et rédaction des comptes rendus internes du bureau.",
       href: "/agenda",
       icon: Calendar,
-      color: "bg-amber-500",
+      color: "bg-indigo-500",
       badge: "Actif",
     },
     {
@@ -190,7 +199,7 @@ export default function AdminPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">
         {modules.map((mod) => {
           const Icon = mod.icon;
           return (
